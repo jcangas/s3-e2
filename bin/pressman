@@ -1,0 +1,18 @@
+#!/usr/bin/env ruby
+
+$LOAD_PATH.unshift File.expand_path('../lib', File.dirname(__FILE__))
+require 'pressman'
+
+module Display
+    def say(*args)
+        puts(*args)
+    end
+end
+
+STDOUT.extend(Display)
+game = Pressman::Game.new(STDOUT)
+game.start
+while input = gets.chomp
+  game.input(input)
+end
+
