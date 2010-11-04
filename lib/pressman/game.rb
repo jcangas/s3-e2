@@ -2,6 +2,14 @@ class Array
   def to_square_name
     (self[0] +  "a".ord).chr + (self[1] +  '1'.ord).chr
   end
+
+  def sum(other)
+    self.zip(other).map do |pair|
+      a = pair[0] || 0
+      b = pair[1] || 0
+      a + b
+    end
+  end
 end
 
 class String
@@ -139,7 +147,7 @@ module Pressman
               exit
         end
       rescue Exception => e
-        board.flash = text + " error!: " + e.message
+        board.flash = command + " error!: " + e.message
       end
       board.draw
     end
@@ -162,9 +170,29 @@ module Pressman
 
     def validate_move(squares)
       raise "You don't have a stone in #{squares[0].to_square_name}" unless board.is_friend?(squares[0])
-      raise "Square #{squares[1].to_square_name} is occupied" if board.is_friend?(squares[1])
+      delta = [squares[1][0] - squares[0][0], squares[1][1] - squares[0][1]]
+
+      # can move along rows or columns. In this case or row not change or column not change
+      is_straight = (delta[1]*delta[0] == 0)
+      # can move along diagonals. In this case the change rate rows / columns == 1
+      is_diagonal = !is_straight && ((delta[1] / delta[0]).abs == 1)
+
+      raise "Invalid move" unless (is_straight ||  is_diagonal)
+      occupied = first_between(squares)
+      occupied = squares[1] if board.is_friend?(squares[1])
+      raise "Square #{occupied.to_square_name} is occupied" if occupied
     end
 
+    def first_between(squares)
+      delta = [squares[1][0] - squares[0][0], squares[1][1] - squares[0][1]]
+      step =  delta.map {|c| c <=> 0 } # map to sign
+      checked = squares[0].sum(step)
+      while checked != squares[1]
+        return checked unless board.is_empty?(checked)
+        checked = checked.sum(step)
+      end
+      nil
+    end
   end
 end
 
