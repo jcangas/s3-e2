@@ -22,7 +22,7 @@ module Pressman
 
       it "Stones count is ok" do
         game.start
-        game.stones.should == [16, 16]
+        game.stone_count.should == [32, 16, 16]
       end
     end
 
@@ -42,26 +42,26 @@ module Pressman
       context "a valid move" do
         it "the player stone is moved" do
           game.start
-          old_stones = game.stones.dup
+          old_stones = game.stone_count.dup
           game.board['g5'].should == game.player
           game.board.is_empty?('c5').should be_true
           game.move("g5-c5")
           game.board.is_empty?('g5').should be_true
           game.board['c5'].should == game.player
-          game.stones.should == old_stones
+          game.stone_count.should == old_stones
         end
 
         it "kill a stone if target square is not free" do
           game.start
 
-          old_stones = game.stones.dup
+          old_stones = game.stone_count.dup
           game.board['g5'].should == game.player
           game.board['b5'].should == game.oponent
           game.move("g5-b5")
           game.board.is_empty?('g5').should be_true
           game.board['b5'].should == game.player
           old_stones[Color.to_ord(game.oponent)] -= 1
-          game.stones.should == old_stones
+          game.stone_count.should == old_stones
         end
       end
 
