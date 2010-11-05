@@ -57,13 +57,16 @@ module Pressman
   end
 
   class Board
+    HomeColors = [ Color::White, Color::White, Color::Empty, Color::Empty,
+                    Color::Empty, Color::Empty, Color::Black, Color::Black]
     attr :player, true
     attr :stone_count
     attr :flash, true
 
     def initialize(display)
       @display = display
-      @board =  Array.new(8){ ['']*8 }
+      @board =  Array.new(8){ [Color::Empty]*8 }
+      @stone_count = [0, 0, 0]
     end
 
     def start
@@ -71,7 +74,6 @@ module Pressman
     end
 
     def empty_setup
-      @stone_count = [0, 0, 0]
       (0..7).each do |row|
         (0..7).each do |col|
           clear!([row, col])
@@ -79,18 +81,14 @@ module Pressman
       end
     end
 
+    def home_color(square)
+      HomeColors[square[0]]
+    end
+
     def game_setup
-      @stone_count = [0, 0, 0]
       for row in 0..7 do
         for col in 0..7 do
-          if (0..1).include?(row)
-            @player = Color::White
-          elsif (6..7).include?(row)
-            @player = Color::Black
-          elsif
-            @player = Color::Empty
-          end
-          new_stone([row, col])
+          self[[row, col]] = home_color([row, col])
         end
       end
     end
@@ -102,7 +100,9 @@ module Pressman
 
     def []=(square, value)
       sqr = square.to_square
+      stone_count[Color.to_ord(stone(sqr))] -= 1
       @board[sqr[0]][sqr[1]] = value
+      stone_count[Color.to_ord(stone(sqr))] += 1
     end
 
     def oponent
@@ -155,12 +155,10 @@ module Pressman
 
     def new_stone(square)
       self[square] = player
-      stone_count[Color.to_ord(stone(square))] += 1
     end
 
     def kill_stone(square)
       return if is_empty?(square)
-      stone_count[Color.to_ord(stone(square))] -= 1
       clear!(square)
     end
 
@@ -239,14 +237,26 @@ module Pressman
     def input(command)
       begin
         case command
+          when /[a-h]\d\s*=\s*(e|b|w)/
+            coord, stone = command.split('=')
+            coord = coord.strip
+            stone = stone.strip
+            board.clear!(coord) if stone == 'e'
+            board[coord] = Color::White if stone == 'w'
+            board[coord] = Color::Black if stone == 'b'
+
           when /[a-h]\d-[a-h]\d/
             move command
             board.player = board.oponent
+          when 'e'
+            board.empty_setup
+          when 'g'
+            board.game_setup
           when 'q'
             exit
         end
       rescue Exception => e
-        board.flash = command + " error!: " + e.message
+        board.flash = command + " error!: " + e.backtrace.join("\n")
       end
       board.draw
     end
