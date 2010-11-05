@@ -13,6 +13,6 @@ STDOUT.extend(Display)
 game = Pressman::Game.new(STDOUT)
 game.start
 while input = gets.chomp
-  game.input(input)
+  break if game.input(input)
 end
 

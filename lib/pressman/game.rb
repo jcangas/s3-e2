@@ -1,210 +1,12 @@
 # We use 2 ways for denote a board square:
 # As an array of board indexes, like [2,5]. Indexes are in range 0..7.
 # We say this is "a square"
-# As a algebraic coordinate, like "c5". Analog to chess. Rows are a..h and columns are 1..8.
+# As a algebraic coordinate, like "c5", analog to chess. Rows are a..h and columns are 1..8.
 # We say this is "a coordinate"
-
-
-class Array
-  def to_coord
-    sum(["a".ord, '1'.ord ]).map {|c| c.chr}.join
-  end
-
-  def to_square
-    self
-  end
-
-  # operate squares like vectors
-  def sum(other)
-    self.zip(other).map do |pair|
-      pair[0].to_i + pair[1].to_i
-    end
-  end
-
-  def subs(other)
-    self.zip(other).map do |pair|
-      pair[0].to_i - pair[1].to_i
-    end
-  end
-
-end
-
-class String
-  def to_square
-   # [self[0].ord - "a".ord, self[1].ord - '1'.ord ]
-    [self[0].ord, self[1].ord].subs ["a".ord, '1'.ord ]
-  end
-
-  def to_coord
-    self
-  end
-end
 
 module Pressman
 
-  module Color
-    Empty = 0
-    White = 2
-    Black = 4
-
-    def self.to_ord(value)
-      value / 2
-    end
-
-    def self.to_s(value)
-      ['', 'White', 'Black'][to_ord(value)]
-    end
-  end
-
-  class Board
-    HomeColors = [ Color::White, Color::White, Color::Empty, Color::Empty,
-                    Color::Empty, Color::Empty, Color::Black, Color::Black]
-    attr :player, true
-    attr :stone_count
-    attr :flash, true
-
-    def initialize(display)
-      @display = display
-      @board =  Array.new(8){ [Color::Empty]*8 }
-      @stone_count = [0, 0, 0]
-    end
-
-    def start
-      game_setup
-    end
-
-    def empty_setup
-      (0..7).each do |row|
-        (0..7).each do |col|
-          clear!([row, col])
-        end
-      end
-    end
-
-    def home_color(square)
-      HomeColors[square[0]]
-    end
-
-    def game_setup
-      for row in 0..7 do
-        for col in 0..7 do
-          self[[row, col]] = home_color([row, col])
-        end
-      end
-    end
-
-    def [](square)
-      sqr = square.to_square
-      @board[sqr[0]][sqr[1]]
-    end
-
-    def []=(square, value)
-      sqr = square.to_square
-      stone_count[Color.to_ord(stone(sqr))] -= 1
-      @board[sqr[0]][sqr[1]] = value
-      stone_count[Color.to_ord(stone(sqr))] += 1
-    end
-
-    def oponent
-      player == Color::White ? Color::Black : Color::White
-    end
-
-    def top(color)
-      (color == Color::Black) ? 0 : 7
-    end
-
-    def bottom(color)
-      (color == Color::Black) ? 7 : 0
-    end
-
-    def clear!(square)
-      self[square] = Color::Empty
-    end
-
-    # Board has 2 sides of equal size. The top side is assigned to White
-    def side(square)
-      (0..3).include?(square[0]) ? Color::White : Color::Black
-    end
-
-    # color of the stone at  square.
-    def stone(square)
-      (self[square] / 2 ) * 2 # to ignore stone deactivation
-    end
-
-    def occupied_by?(square, color)
-      stone(square) == color
-    end
-
-    def is_empty?(square)
-      occupied_by?(square, Color::Empty)
-    end
-
-    def is_occupied?(square)
-      !is_empty?(square)
-    end
-
-    # Stone behaivior. This methods operates "onthe stone" at square
-
-    def stone_top(square)
-      top(stone(square))
-    end
-
-    def stone_bottom(square)
-      bottom(stone(square))
-    end
-
-    def new_stone(square)
-      self[square] = player
-    end
-
-    def kill_stone(square)
-      return if is_empty?(square)
-      clear!(square)
-    end
-
-    def deactivate_stone(square)
-      return if is_empty?(square) || !stone_activated?(square)
-      self[square] += 1
-    end
-
-    def activate_stone(square)
-      return if is_empty?(square) || stone_activated?(square)
-      self[square] -= 1
-    end
-
-    def stone_activated?(square)
-      is_occupied?(square) && (self[square] % 2 == 0)
-    end
-
-    # check if stone is smae color as current player
-    def friend_stone?(square)
-      occupied_by?(square, player)
-    end
-
-    def stone_at_side?(square)
-      side(square) == stone(square)
-    end
-
-    def stone_at_top?(square)
-      square[0] == stone_top(square)
-    end
-
-    def draw
-      @display.say '   1   2   3   4   5   6   7   8'
-      row_labels = "abcdefgh"
-      row_sep = '  ' + "-"*(4*8)
-      @board.each_index do |idx|
-        @display.say row_sep
-        row = @board[idx].map {|square| [' ', ' ', 'o', 'O', 'x', 'X'][square]}.join(' | ')
-        @display.say "#{row_labels[idx]}| #{row} |"
-      end
-      @display.say row_sep
-      stones_txt = [Color::Black, Color::White].map{ |c| Color.to_s(c) + " = #{stone_count[Color.to_ord(c)]}"}.join('  ')
-      @display.say "Stones: #{stones_txt}"
-      @display.say "#{flash}" if flash
-      flash = nil
-      @display.say "#{Color::to_s(player)} move?"
-    end
+  class Error < RuntimeError
   end
 
   class Game
@@ -213,12 +15,17 @@ module Pressman
     def initialize(display)
       @display = display
       @board = Board.new(display)
+      @display.say 'Welcome to Pressman Game!'
     end
 
-    def start
-      @display.say 'Welcome to Pressman Game!'
-      board.start
+    def error(msg)
+      Pressman::Error.new(msg)
+    end
+
+    def start(board_setup = :game)
+      board.send("#{board_setup}_setup")
       board.player = Color::Black
+      @winner = nil
       board.draw
     end
 
@@ -238,27 +45,40 @@ module Pressman
       begin
         case command
           when /[a-h]\d\s*=\s*(e|b|w)/
-            coord, stone = command.split('=')
-            coord = coord.strip
-            stone = stone.strip
-            board.clear!(coord) if stone == 'e'
-            board[coord] = Color::White if stone == 'w'
-            board[coord] = Color::Black if stone == 'b'
-
+            user_setup command  unless @winner
           when /[a-h]\d-[a-h]\d/
-            move command
-            board.player = board.oponent
+            move command unless @winner
+          when 'r'
+            resing unless @winner
           when 'e'
-            board.empty_setup
+            start(:empty)
           when 'g'
-            board.game_setup
+            start(:game)
           when 'q'
-            exit
+            @display.say "Goodbye ..."
+            return true
         end
+      rescue Pressman::Error => e
+        board.flash = command + " error!: #{e.message}"
       rescue Exception => e
-        board.flash = command + " error!: " + e.backtrace.join("\n")
+        board.flash = command + " error!: #{e.message}" + "\n" + e.backtrace.join("\n")
       end
       board.draw
+    end
+
+    def user_setup(command)
+      coord, stone = command.split('=')
+      coord = coord.strip
+      stone = stone.strip
+      board.clear!(coord) if stone == 'e'
+      board[coord] = Color::White if stone == 'w'
+      board[coord] = Color::Black if stone == 'b'
+    end
+
+    def resing
+      @winner = opponent
+      @display.say("You resigns")
+      @display.say("#{Color.to_s(@winner)} player wins!!")
     end
 
     def move(move)
@@ -272,6 +92,9 @@ module Pressman
 
       check_regeneration(squares[1])
       check_reactivation(squares[1])
+
+      check_winner
+      next_player
     end
 
   private
@@ -280,8 +103,12 @@ module Pressman
       text.split('-').map{|coord| coord.to_square}
     end
 
+    def next_player
+      board.player = board.oponent
+    end
+
     def validate_move(squares)
-      raise "You don't have a stone in #{squares[0].to_coord}" unless board.friend_stone?(squares[0])
+      raise error("You don't have a stone in #{squares[0].to_coord}") unless board.friend_stone?(squares[0])
 
       delta = squares[1].subs squares[0]
       # can move along rows or columns. In this case or row not change or column not change
@@ -289,11 +116,11 @@ module Pressman
       # can move along diagonals. In this case the change rate rows / columns == 1
       is_diagonal = (delta[0] != 0) && ((delta[1] / delta[0]).abs == 1)
 
-      raise "Invalid move" unless (is_straight ||  is_diagonal)
+      raise error("Invalid move") unless (is_straight ||  is_diagonal)
 
       occupied = first_between(squares, :is_occupied?)
       occupied = squares[1] if board.friend_stone?(squares[1])
-      raise "Square #{occupied.to_coord} is occupied" if occupied
+      raise error("Square #{occupied.to_coord} is occupied") if occupied
     end
 
     def first_between(squares, condition, inclusive = nil)
@@ -319,11 +146,17 @@ module Pressman
 
       free_square = first_between(bottom_row, :is_empty?, :inclusive)
       return unless free_square
-      board.new_stone(free_square)
+      board.put_stone(free_square)
     end
 
     def check_reactivation(square)
       board.activate_stone(square) if board.stone_at_side?(square)
+    end
+
+    def check_winner
+      return if stone_count[Color.to_ord(oponent)] > 0
+      @winner = player
+      @display.say("#{Color.to_s(@winner)} player wins!!")
     end
   end
 end
