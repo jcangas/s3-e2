@@ -1,163 +1,130 @@
 
+  # Board captures the state of the game play and know some basics facts in order to help
+  # the Game class. Note this a Pressman:: Board not a "generic"" Board, so it knows some basics
+  # facts about a Pressman's board ...
+  # It's all about 'static' facts of the game: Board don't know game's dynamics nor game rules
+
+  # We use 2 ways for denote a board square:
+  # 1) As an array of board indexes in range 0..7, like [2,5].
+  #   We say this is "a square"
+  #
+  # 2) As a algebraic coordinate analog to chess, like "c5".
+  #   Rows are a..h and columns are 1..8.  We say this is "a coordinate"
+
 module Pressman
-  module Color
-    Empty = 0
-    White = 2
-    Black = 4
-
-    def self.to_ord(value)
-      value / 2
-    end
-
-    def self.to_s(value)
-      ['', 'White', 'Black'][to_ord(value)]
-    end
-  end
 
   class Board
-    HomeColors = [ Color::White, Color::White, Color::Empty, Color::Empty,
-                    Color::Empty, Color::Empty, Color::Black, Color::Black]
-    attr :player, true
-    attr :stone_count
-    attr :flash, true
 
-    def initialize(display)
-      @display = display
-      @board =  Array.new(8){ [Color::Empty]*8 }
-      @stone_count = [64, 0, 0]
+    attr_accessor :player # current player
+    attr_reader :stones   # stone count for each player
+    attr_reader :max_row
+    attr_reader :max_column
+
+    def initialize(rows, columns)
+      @max_row = rows - 1
+      @max_column = columns - 1
+      @board =  Array.new(rows){ [nil]*columns }
+      @stones = {:black => 0, :white => 0}
     end
 
-    def [](square)
-      sqr = square.to_square
-      @board[sqr[0]][sqr[1]]
+    # Square <-> Coordinate conversions
+
+    def to_square(coord)
+      return coord if coord.is_a? Array
+      [coord[0].ord - "a".ord, coord[1].ord - '1'.ord]
     end
 
-    def []=(square, value)
-      sqr = square.to_square
-      stone_count[Color.to_ord(stone(sqr))] -= 1
-      @board[sqr[0]][sqr[1]] = value
-      stone_count[Color.to_ord(stone(sqr))] += 1
+    def to_coord(square)
+      return square if square.is_a? String
+      [ square[0] + "a".ord, square[1] + '1'.ord ].map {|c| c.chr}.join
     end
 
-    def home_color(square)
-      HomeColors[square[0]]
-    end
-
+    # current oponent
     def oponent
-      player == Color::White ? Color::Black : Color::White
+      player == :white ? :black : :white
     end
 
-    def top(color)
-      (color == Color::Black) ? 0 : 7
+    # Some facts about the board
+
+    # Board has 2 zones of equal size. The top side is assigned to White
+    def zone(square)
+      (0 .. (@max_row / 2)).include?(square[0]) ? :white : :black
     end
 
-    def bottom(color)
-      (color == Color::Black) ? 7 : 0
+    # Each player has top & bottom rows.
+
+    # Bottom is the first row in player's initial game setup.
+    def bottom(player)
+      (player == :black) ? @max_row : 0
     end
 
-    def clear!(square)
-      self[square] = Color::Empty
+    # Top is the oponent's bottom
+    def top(player)
+      (player == :black) ? 0 : @max_row
     end
 
-    # Board has 2 sides of equal size. The top side is assigned to White
-    def side(square)
-      (0..3).include?(square[0]) ? Color::White : Color::Black
-    end
-
-    # color of the stone at  square.
-    def stone(square)
-      (self[square] / 2 ) * 2 # to ignore stone deactivation
-    end
-
-    def occupied_by?(square, color)
-      stone(square) == color
-    end
+    # Helper methods to query board about some basics facts
 
     def is_empty?(square)
-      occupied_by?(square, Color::Empty)
+      self[square].nil?
     end
 
     def is_occupied?(square)
-      !is_empty?(square)
+      self[square]
     end
 
-    # Stone behaivior. This methods operates "onthe stone" at square
-
-    def stone_top(square)
-      top(stone(square))
+    def occupied_by?(square, player)
+      is_occupied?(square) && self[square].color == player
     end
 
-    def stone_bottom(square)
-      bottom(stone(square))
-    end
-
-    def put_stone(square)
-      self[square] = player
-    end
-
-    def kill_stone(square)
-      clear!(square)
-    end
-
-    def deactivate_stone(square)
-      return if is_empty?(square) || !stone_activated?(square)
-      self[square] += 1
-    end
-
-    def activate_stone(square)
-      return if is_empty?(square) || stone_activated?(square)
-      self[square] -= 1
-    end
-
-    def stone_activated?(square)
-      is_occupied?(square) && (self[square] % 2 == 0)
-    end
-
-    # check if stone is smae color as current player
-    def friend_stone?(square)
+    # check if square contains a stone of current player
+    def friend?(square)
       occupied_by?(square, player)
     end
 
-    def stone_at_side?(square)
-      side(square) == stone(square)
+    # check if the stone in square is in their home zone
+    def at_home?(square)
+      zone(square) == self[square].color
     end
 
-    def stone_at_top?(square)
-      square[0] == stone_top(square)
+    # check square is in player "Top" row
+    def at_top?(square, player)
+      square[0] == top(player)
     end
 
-    def draw
-      @display.say '   1   2   3   4   5   6   7   8'
-      row_labels = "abcdefgh"
-      row_sep = '  ' + "-"*(4*8)
-      @board.each_index do |idx|
-        @display.say row_sep
-        row = @board[idx].map {|square| [' ', ' ', 'o', 'O', 'x', 'X'][square]}.join(' | ')
-        @display.say "#{row_labels[idx]}| #{row} |"
-      end
-      @display.say row_sep
-      stones_txt = [Color::Black, Color::White].map{ |c| Color.to_s(c) + " = #{stone_count[Color.to_ord(c)]}"}.join('  ')
-      @display.say "Stones: #{stones_txt}"
-      @display.say "#{flash}" if flash
-      flash = nil
-      @display.say "#{Color::to_s(player)} move?"
+    # Positon of the stones
+    def [](square)
+      sqr = to_square(square)
+      @board[sqr[0]][sqr[1]]
+    end
+
+    # Board state change
+
+    def []=(square, player)
+      sqr = to_square(square)
+      adjust_stones(self[sqr], -1)
+      @board[sqr[0]][sqr[1]] = player
+      adjust_stones(self[sqr], +1)
+    end
+
+    # Put a new stone. Clear it if player == nil
+    def put_stone(square, player)
+      self[square] = player ? Stone.new(player) : nil
+    end
+
+    def clear!(square)
+      put_stone(square, nil)
+    end
+
+    # Raw move
+    def move!(origin, destination)
+      self[destination] = self[origin]
+      clear!(origin)
     end
 
   private
-    def empty_setup
-      (0..7).each do |row|
-        (0..7).each do |col|
-          clear!([row, col])
-        end
-      end
-    end
-
-    def game_setup
-      for row in 0..7 do
-        for col in 0..7 do
-          self[[row, col]] = home_color([row, col])
-        end
-      end
+    def adjust_stones(stone, delta)
+      @stones[stone.color] += delta if stone
     end
   end
 end

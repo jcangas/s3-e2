@@ -3,16 +3,7 @@
 $LOAD_PATH.unshift File.expand_path('../lib', File.dirname(__FILE__))
 require 'pressman'
 
-module Display
-    def say(*args)
-        puts(*args)
-    end
-end
-
-STDOUT.extend(Display)
-game = Pressman::Game.new(STDOUT)
-game.start
-while input = gets.chomp
-  break if game.input(input)
-end
+game = Pressman::Game.new
+gui = Pressman::GameUI.new(game)
+gui.run
 
